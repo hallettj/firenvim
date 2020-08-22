@@ -663,15 +663,77 @@ function paint (_: DOMHighResTimeStamp) {
         x += charWidth;
         rect.width -= charWidth;
 
+        // str is the whole string contained in the command line
         let str = commandLine.content.reduce((r: string, segment: [any, string]) => r + segment[1], "");
-        let size = context.measureText(str).width;
-        while (size >= rect.width) {
-            str = str.slice(1);
-            size = context.measureText(str).width;
+        // cursorAnchor is the position of the cursor in the commandline. It is
+        // an index in str but will never point to the second half of a
+        // multibyte character.
+        let cursorAnchor = 0;
+        // cursorCounter is a counter decremented by the number of UTF-8 bytes
+        // used to represent each of the characters encountered in the loop
+        // below. When it becomes less than 0, we know that the cursor is at
+        // the far left of the command line and so we set cursorAnchor.
+        let cursorCounter = commandLine.pos;
+        // availableWidth keeps track of the available space. When it's less
+        // than zero, str is too big to fit in the command line.
+        let availableWidth = rect.width;
+        for (let i = 0; i < str.length; ++i) {
+            const charIndex = i;
+            let char = str[charIndex];
+            // js strings are utf16, so str[charIndex] might only be half of
+            // the character. This can be checked for by checking if the code
+            // point is greater than 255.
+            const isUTF16Multibyte = str.charCodeAt(charIndex) > 255;
+            if (isUTF16Multibyte) {
+                char = str.slice(charIndex, charIndex + 2);
+                i += 1;
+            }
+
+            // We need to get the number of utf-8 characters it takes to
+            // represent this character. We do this by uri-encoding the
+            // character and checking its length. If it's one, the character is
+            // one UTF-8 byte, otherwise we need to divide the length of the
+            // uri-encoded string by three because the representation of
+            // multibyte UTF-8 chars is %XX.
+            let encoded = encodeURI(char);
+            let byteLength = 1;
+            if (encoded.length > 1) {
+                byteLength = encoded.length / 3;
+            }
+            cursorCounter -= byteLength;
+            if (cursorCounter < 0) {
+                cursorAnchor = charIndex;
+                break;
+            }
+
+            // We also need to know if the current character visually fits in
+            // the commandline.
+            availableWidth -= charWidth;
+            // The character might be double-width "pixelwise", remove a second
+            // charWidth if that's the case.
+            if (context.measureText(char).width > charWidth) {
+                availableWidth -= charWidth;
+                cursorAnchor += 1;
+            }
+        }
+
+        let strBeginning = 0;
+        if (availableWidth < 0) {
+            strBeginning = cursorAnchor;
+        }
+        for (let i = 0; i < str.length - strBeginning; ++i) {
+            const index = i;
+            let char = str[index + strBeginning];
+            if (str.charCodeAt(index + strBeginning) > 255) {
+                i += 1;
+                char = str.slice(index + strBeginning, index + strBeginning + 2);
+            }
+            context.fillText(char, x + (index * charWidth), y + baseline);
         }
         // rest
-        context.fillText(str, x, y + baseline);
+        // context.fillRect(x + (charWidth * commandLine.pos), y + baseline + 1, charWidth, 1);
     } else {
+        // If the command line isn't shown, the cursor's in a grid
         const cursor = state.cursor;
         if (cursor.currentGrid === gid) {
             const mode = state.mode;
