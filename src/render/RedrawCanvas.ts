@@ -664,13 +664,45 @@ function paint (_: DOMHighResTimeStamp) {
         rect.width -= charWidth;
 
         let str = commandLine.content.reduce((r: string, segment: [any, string]) => r + segment[1], "");
-        let size = context.measureText(str).width;
-        while (size >= rect.width) {
-            str = str.slice(1);
-            size = context.measureText(str).width;
+        let strBeginning = 0;
+        let toDisplay = "";
+        let size = 0;
+        let i = 0;
+        while (toDisplay.length < str.length && i < str.length) {
+            // check if char is utf16 multibyte
+            let char = str[i];
+            if (str.charCodeAt(i) > 255) {
+                char = str.slice(i, i + 2);
+                i += 1;
+            }
+            i += 1;
+
+            let charSize = charWidth * (context.measureText(char).width < charWidth ? 1 : 2);
+            if (size + charSize > rect.width) {
+                let toRemove;
+                if (str.charCodeAt(0) <= 255) {
+                    toRemove = toDisplay[0];
+                    toDisplay = toDisplay.slice(1);
+                } else {
+                    toRemove = str.slice(0, 2);
+                    toDisplay = toDisplay.slice(2);
+                }
+                size -= charWidth * (context.measureText(toRemove).width < charWidth ? 1 : 2);
+            }
+            toDisplay += char;
+            size += charSize;
+        }
+        for (let i = 0; i < toDisplay.length; ++i) {
+            const index = i;
+            let char = toDisplay[index];
+            if (str.charCodeAt(index) > 255) {
+                char = str.slice(index, index + 2);
+                i += 1;
+            }
+            context.fillText(char, x + (index * charWidth), y + baseline);
         }
         // rest
-        context.fillText(str, x, y + baseline);
+        // context.fillText(str, x, y + baseline);
     } else {
         const cursor = state.cursor;
         if (cursor.currentGrid === gid) {
