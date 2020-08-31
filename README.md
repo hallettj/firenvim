@@ -31,7 +31,7 @@ Before installing anything please read [SECURITY.md](SECURITY.md) and make sure 
     * [dein](https://github.com/Shougo/dein.vim)
 
         ```vim
-        call dein#add('glacambre/firenvim', { 'hook_post_update': { _ -> firenvim#install(0) } })
+        call dein#add('glacambre/firenvim', { 'hook_post_update': { -> firenvim#install(0) } })
         ```
 
     * [minpac](https://github.com/k-takata/minpac)
